@@ -13,6 +13,10 @@ import analyticsRoutes from './routes/analytics.js';
 import workflowRoutes from './routes/workflow.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
+const cors = require("cors");
+
+app.use(cors());
+
 dotenv.config();
 
 if (!process.env.JWT_SECRET) {
