@@ -2,16 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageLoader } from '../components/ui/PageLoader';
 import { fetchWorkflowHistory } from '../services/api';
-import { workflowFallback } from '../utils/demoData';
 
 const WorkflowPage = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { skipCache?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
-      const response = await fetchWorkflowHistory();
-      const data = Array.isArray(response.data) ? response.data : workflowFallback;
+      const response = await fetchWorkflowHistory({ skipCache: opts?.skipCache });
+      const data = Array.isArray(response.data) ? response.data : [];
       setHistory(
         data.map((item: any) => ({
           ...item,
@@ -20,13 +20,23 @@ const WorkflowPage = () => {
             : (item.workflow || []).map((w: { step?: string }) => w.step || w),
         }))
       );
+    } catch {
+      setHistory([]);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void load({});
+    const interval = setInterval(() => void load({ silent: true }), 60_000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  useEffect(() => {
+    const onRefresh = () => void load({ skipCache: true, silent: true });
+    window.addEventListener('finova:data-changed', onRefresh);
+    return () => window.removeEventListener('finova:data-changed', onRefresh);
   }, [load]);
 
   return (
@@ -45,6 +55,8 @@ const WorkflowPage = () => {
 
         {loading ? (
           <PageLoader label="Loading workflow history..." />
+        ) : history.length === 0 ? (
+          <div className="glass-card p-8 text-center text-slate-400">No workflow records yet. Submit a loan application to see pipeline stages.</div>
         ) : (
           <div className="space-y-5">
             {history.map((item) => (
@@ -69,8 +81,8 @@ const WorkflowPage = () => {
                   </div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {item.timeline?.map((step: string) => (
-                    <span key={step} className="rounded-full bg-cyan-500/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-cyan-200">{step}</span>
+                  {item.timeline?.map((step: string, idx: number) => (
+                    <span key={`${item._id}-step-${idx}`} className="rounded-full bg-cyan-500/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-cyan-200">{step}</span>
                   ))}
                 </div>
               </div>

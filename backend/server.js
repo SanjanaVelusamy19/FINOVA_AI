@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.js';
 import applicationRoutes from './routes/applications.js';
 import analyticsRoutes from './routes/analytics.js';
 import workflowRoutes from './routes/workflow.js';
+import notificationRoutes from './routes/notifications.js';
 
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
@@ -50,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/workflow', workflowRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({

@@ -16,11 +16,13 @@ const ApplicationsPage = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadApplications = async () => {
+  const loadApplications = async (opts?: { skipCache?: boolean }) => {
     setLoading(true);
     try {
-      const response = await fetchApplications();
-      setApplications(response.data);
+      const response = await fetchApplications({ skipCache: opts?.skipCache });
+      setApplications(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setApplications([]);
     } finally {
       setLoading(false);
     }
@@ -40,7 +42,7 @@ const ApplicationsPage = () => {
               <h1 className="mt-3 text-4xl font-semibold text-white">Application pipeline</h1>
               <p className="mt-3 max-w-2xl text-slate-400">Review borrower requests, status, risk scores, and verification progress in one unified view.</p>
             </div>
-            <button onClick={loadApplications} className="inline-flex items-center gap-2 rounded-3xl bg-gradient-to-r from-cyan-500/20 to-violet-500/15 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:from-cyan-400 hover:to-violet-400">
+            <button onClick={() => void loadApplications({ skipCache: true })} className="inline-flex items-center gap-2 rounded-3xl bg-gradient-to-r from-cyan-500/20 to-violet-500/15 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:from-cyan-400 hover:to-violet-400">
               <RefreshCcw className="h-4 w-4" /> Refresh list
             </button>
           </div>

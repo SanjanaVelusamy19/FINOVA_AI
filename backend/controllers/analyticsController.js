@@ -15,18 +15,23 @@ const riskAggregation = [
 ];
 
 export const getDashboardMetrics = async (req, res) => {
-  const [totalApplications, approvedLoans, pendingVerification, riskAlerts, monthlyApplications, riskBuckets, aiLogs] =
+  const [totalApplications, approvedLoans, pendingVerification, riskAlerts, fraudAlerts, aiActivityCount, monthlyApplications, riskBuckets, workflowDistribution, aiLogs] =
     await Promise.all([
       LoanApplication.countDocuments(),
       LoanApplication.countDocuments({ status: 'approved' }),
-      LoanApplication.countDocuments({ status: { $in: ['assigned', 'analysis', 'queued'] } }),
+      LoanApplication.countDocuments({ status: { $in: ['assigned', 'analysis', 'queued', 'identity_verification', 'ai_risk_analysis', 'fraud_detection', 'compliance_review', 'under_review'] } }),
       LoanApplication.countDocuments({ riskScore: { $gte: 70 } }),
+      LoanApplication.countDocuments({ fraudProbability: { $gte: 60 } }),
+      AiActivityLog.countDocuments(),
       LoanApplication.aggregate([
         { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
         { $sort: { '_id.year': 1, '_id.month': 1 } },
         { $limit: 12 },
       ]),
       LoanApplication.aggregate(riskAggregation),
+      LoanApplication.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
       AiActivityLog.find().sort({ timestamp: -1 }).limit(12).lean(),
     ]);
 
@@ -35,14 +40,17 @@ export const getDashboardMetrics = async (req, res) => {
     approvedLoans,
     pendingVerification,
     riskAlerts,
+    fraudAlerts,
+    aiActivityCount,
     monthlyApplications,
     riskDistribution: mapRiskDistribution(riskBuckets),
+    workflowDistribution,
     aiLogs,
   });
 };
 
 export const getApprovalAnalytics = async (req, res) => {
-  const [approvalRates, monthlyApplications, riskBuckets, tasks] = await Promise.all([
+  const [approvalRates, monthlyApplications, riskBuckets, tasks, fraudSegments] = await Promise.all([
     LoanApplication.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
     LoanApplication.aggregate([
       { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
@@ -50,6 +58,9 @@ export const getApprovalAnalytics = async (req, res) => {
     ]),
     LoanApplication.aggregate(riskAggregation),
     VerificationTask.find().select('status').lean(),
+    LoanApplication.aggregate([
+      { $bucket: { groupBy: '$fraudProbability', boundaries: [0, 30, 50, 70, 101], default: 'Unknown', output: { count: { $sum: 1 } } } },
+    ]),
   ]);
 
   res.json({
@@ -57,6 +68,7 @@ export const getApprovalAnalytics = async (req, res) => {
     monthlyApplications,
     riskDistribution: mapRiskDistribution(riskBuckets),
     verificationRates: buildVerificationRates(tasks),
+    fraudSegments: fraudSegments.map((item) => ({ _id: item._id === 0 ? 'Low' : item._id === 30 ? 'Moderate' : item._id === 50 ? 'High' : 'Critical', count: item.count })),
     aiConfidence: [
       { name: 'High', value: 55 },
       { name: 'Medium', value: 31 },

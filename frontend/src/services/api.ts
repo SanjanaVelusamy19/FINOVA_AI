@@ -14,7 +14,7 @@ const baseURL = apiRoot.endsWith('/api') ? apiRoot : `${apiRoot.replace(/\/$/, '
 
 const client = axios.create({
   baseURL,
-  timeout: 12000,
+  timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -41,7 +41,7 @@ client.interceptors.response.use(
 
 type CacheEntry = { data: unknown; expires: number };
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 45_000;
+const CACHE_TTL_MS = 30_000;
 
 const getCached = <T>(key: string): T | null => {
   const entry = cache.get(key);
@@ -59,26 +59,41 @@ const setCache = (key: string, data: unknown) => {
 
 export const clearApiCache = () => cache.clear();
 
+const emitDataChanged = () => {
+  window.dispatchEvent(new CustomEvent('finova:data-changed'));
+};
+
 const withRetry = async <T>(fn: () => Promise<T>, retries = 1): Promise<T> => {
   try {
     return await fn();
   } catch (error) {
     if (retries <= 0) throw error;
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 500));
     return withRetry(fn, retries - 1);
   }
 };
 
-const withDataFallback = async <T>(key: string, request: () => Promise<{ data: T }>, fallback: T): Promise<{ data: T }> => {
-  const cached = getCached<T>(key);
-  if (cached) return { data: cached };
+/** Prefer live API data; use demo fallback only when the request fails without an HTTP response (offline / wrong host). */
+const withNetworkFallback = async <T>(
+  key: string,
+  request: () => Promise<{ data: T }>,
+  fallback: T,
+  skipCache = false
+): Promise<{ data: T }> => {
+  if (!skipCache) {
+    const cached = getCached<T>(key);
+    if (cached) return { data: cached };
+  }
 
   try {
     const response = await withRetry(request);
     if (response?.data === undefined) throw new Error('Missing data');
     setCache(key, response.data);
     return response;
-  } catch {
+  } catch (e) {
+    const ax = e as AxiosError;
+    if (ax.response?.status === 401) throw e;
+    if (ax.response) throw e;
     const stale = getCached<T>(key);
     if (stale) return { data: stale };
     return { data: fallback };
@@ -91,37 +106,43 @@ export const loginRequest = (payload: { email: string; password: string }) =>
 export const registerRequest = (payload: { name: string; email: string; password: string }) =>
   withRetry(() => client.post('/auth/register', payload));
 
-export const fetchDashboard = () =>
-  withDataFallback('dashboard', () => client.get('/analytics/dashboard'), dashboardFallback);
+export const fetchDashboard = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('dashboard', () => client.get('/analytics/dashboard'), dashboardFallback, opts?.skipCache);
 
-export const fetchApprovalAnalytics = () =>
-  withDataFallback('analytics', () => client.get('/analytics/approval'), analyticsFallback);
+export const fetchApprovalAnalytics = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('analytics', () => client.get('/analytics/approval'), analyticsFallback, opts?.skipCache);
 
-export const fetchApplications = () =>
-  withDataFallback('applications', () => client.get('/applications'), applicationsFallback);
+export const fetchApplications = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('applications', () => client.get('/applications'), applicationsFallback, opts?.skipCache);
 
 export const createApplication = async (payload: Record<string, unknown>) => {
   const response = await client.post('/applications', payload);
   cache.delete('applications');
   cache.delete('dashboard');
   cache.delete('workflow');
+  cache.delete('analytics');
+  cache.delete('tasks');
   cache.delete('ai-logs');
+  emitDataChanged();
   return response;
 };
 
-export const fetchWorkflowHistory = () =>
-  withDataFallback('workflow', () => client.get('/workflow/history'), workflowFallback);
+export const fetchWorkflowHistory = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('workflow', () => client.get('/workflow/history'), workflowFallback, opts?.skipCache);
 
-export const fetchTasks = () => withDataFallback('tasks', () => client.get('/workflow/tasks'), tasksFallback);
+export const fetchTasks = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('tasks', () => client.get('/workflow/tasks'), tasksFallback, opts?.skipCache);
 
 export const updateTask = async (id: string, payload: Record<string, unknown>) => {
   const response = await client.patch(`/workflow/tasks/${id}`, payload);
   cache.delete('tasks');
   cache.delete('dashboard');
+  cache.delete('analytics');
+  emitDataChanged();
   return response;
 };
 
-export const fetchAiLogs = () =>
-  withDataFallback('ai-logs', () => client.get('/analytics/ai-logs'), aiLogsFallback);
+export const fetchAiLogs = (opts?: { skipCache?: boolean }) =>
+  withNetworkFallback('ai-logs', () => client.get('/analytics/ai-logs'), aiLogsFallback, opts?.skipCache);
 
 export default client;

@@ -1,6 +1,7 @@
 import LoanApplication from '../models/LoanApplication.js';
 import VerificationTask from '../models/VerificationTask.js';
 import AiActivityLog from '../models/AiActivityLog.js';
+import Notification from '../models/Notification.js';
 import { mapWorkflowHistory } from '../utils/formatters.js';
 
 export const getWorkflowHistory = async (req, res) => {
@@ -42,10 +43,28 @@ export const updateTaskStatus = async (req, res) => {
   const application = await LoanApplication.findById(task.applicationId);
   if (application) {
     if (status === 'completed') {
-      application.status = 'queued';
-      application.workflow.push({ step: 'Approval Queue', date: new Date(), actor: 'Verification Team' });
+      application.status = 'under_review';
+      application.workflow.push({ step: 'Verification completed', date: new Date(), actor: req.user.name || 'Verification Team' });
+      await Notification.create({
+        applicationId: application._id,
+        type: 'workflow',
+        title: 'Verification completed',
+        detail: `Application ${application.referenceId || application._id} is now under review.`,
+        severity: 'info',
+      });
     } else if (status === 'escalated') {
-      application.status = 'analysis';
+      application.status = 'escalated';
+      application.workflow.push({ step: 'Escalated for review', date: new Date(), actor: req.user.name || 'Verification Team' });
+      await Notification.create({
+        applicationId: application._id,
+        type: 'escalation',
+        title: 'Application escalated',
+        detail: `Application ${application.referenceId || application._id} requires senior review.`,
+        severity: 'warning',
+      });
+    } else if (status === 'in_progress') {
+      application.status = 'identity_verification';
+      application.workflow.push({ step: 'Verification in progress', date: new Date(), actor: req.user.name || 'Verification Team' });
     }
     await application.save();
   }

@@ -6,9 +6,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const createToken = (user) => {
-  return jwt.sign({ id: user._id, email: user.email, role: user.role, name: user.name }, process.env.JWT_SECRET, {
-    expiresIn: '12h',
-  });
+  return jwt.sign(
+    { id: String(user._id), email: user.email, role: user.role, name: user.name },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: '12h',
+    }
+  );
 };
 
 export const register = async (req, res) => {

@@ -1,3 +1,21 @@
+export const emptyDashboard = {
+  totalApplications: 0,
+  approvedLoans: 0,
+  pendingVerification: 0,
+  riskAlerts: 0,
+  monthlyApplications: [] as { _id: { year: number; month: number }; count: number }[],
+  riskDistribution: [] as { _id: string; count: number }[],
+  aiLogs: [] as { _id?: string; type?: string; title?: string; detail?: string; timestamp?: string }[],
+};
+
+export const emptyAnalytics = {
+  approvalRates: [] as { _id: string; count: number }[],
+  monthlyApplications: [] as { _id: { year: number; month: number }; count: number }[],
+  riskDistribution: [] as { _id: string; count: number }[],
+  verificationRates: [] as { name: string; value: number }[],
+  aiConfidence: [] as { name: string; value: number }[],
+};
+
 export const dashboardFallback = {
   totalApplications: 84,
   approvedLoans: 28,

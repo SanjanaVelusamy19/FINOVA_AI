@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageLoader } from '../components/ui/PageLoader';
 import { fetchAiLogs } from '../services/api';
@@ -14,18 +14,30 @@ const AiLogsPage = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await fetchAiLogs();
-        const payload = response.data as any[] | { aiLogs?: any[] };
-        setLogs(Array.isArray(payload) ? payload : payload?.aiLogs || []);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
+  const load = useCallback(async (opts?: { skipCache?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const response = await fetchAiLogs({ skipCache: opts?.skipCache });
+      const payload = response.data as any[] | { aiLogs?: any[] };
+      setLogs(Array.isArray(payload) ? payload : payload?.aiLogs || []);
+    } catch {
+      setLogs([]);
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load({});
+    const interval = setInterval(() => void load({ silent: true }), 45_000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  useEffect(() => {
+    const onRefresh = () => void load({ skipCache: true, silent: true });
+    window.addEventListener('finova:data-changed', onRefresh);
+    return () => window.removeEventListener('finova:data-changed', onRefresh);
+  }, [load]);
 
   return (
     <AppShell>
@@ -42,6 +54,8 @@ const AiLogsPage = () => {
 
         {loading ? (
           <PageLoader label="Loading AI activity..." />
+        ) : logs.length === 0 ? (
+          <div className="glass-card p-8 text-center text-slate-400">No AI events yet. Processing a loan application will populate this timeline.</div>
         ) : (
           <div className="space-y-4">
             {logs.map((log) => (
@@ -55,7 +69,7 @@ const AiLogsPage = () => {
                     </div>
                   </div>
                   <div className="space-y-2 text-right">
-                    <span className="block text-sm text-slate-400">{new Date(log.timestamp).toLocaleString()}</span>
+                    <span className="block text-sm text-slate-400">{log.timestamp ? new Date(log.timestamp).toLocaleString() : '—'}</span>
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${severityClasses[log.severity] ?? 'bg-slate-800 text-slate-200'}`}>
                       {log.severity || 'info'}
                     </span>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginRequest } from '../services/api';
+import { clearApiCache, loginRequest } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Sparkles, ArrowRight, Shield } from 'lucide-react';
@@ -37,7 +37,13 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const response = await loginRequest(form);
-      setUserFromToken(response.data.token);
+      const token = response.data?.token;
+      if (!token) {
+        setError('Invalid response from server.');
+        return;
+      }
+      clearApiCache();
+      setUserFromToken(token);
       if (rememberMe) {
         localStorage.setItem('finova_remember_email', form.email);
       } else {

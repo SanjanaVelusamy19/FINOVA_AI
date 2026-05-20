@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { registerRequest } from '../services/api';
+import { clearApiCache, registerRequest } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
 import { Sparkles, ShieldCheck } from 'lucide-react';
@@ -22,7 +22,13 @@ const RegisterPage = () => {
     setLoading(true);
     try {
       const response = await registerRequest(form);
-      setUserFromToken(response.data.token);
+      const token = response.data?.token;
+      if (!token) {
+        setError('Invalid response from server.');
+        return;
+      }
+      clearApiCache();
+      setUserFromToken(token);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Registration failed');

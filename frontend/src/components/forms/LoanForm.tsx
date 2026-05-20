@@ -2,9 +2,16 @@ import { useMemo, useState } from 'react';
 import { createApplication } from '../../services/api';
 import { motion } from 'framer-motion';
 
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const DEFAULT_INCOME = 800000;
+const DEFAULT_LOAN = 300000;
+
+const normalizeAadhaar = (v: string) => v.replace(/\D/g, '');
+const normalizePan = (v: string) => v.replace(/\s/g, '').toUpperCase();
+
 const analysisSummary = (values: Record<string, string | string[]>) => {
-  const income = Number(values['income'] || 0);
-  const loanAmount = Number(values['loanAmount'] || 0);
+  const income = Number(values['income'] || 0) || DEFAULT_INCOME;
+  const loanAmount = Number(values['loanAmount'] || 0) || DEFAULT_LOAN;
   const ratio = income > 0 ? Math.round((loanAmount / income) * 100) : 0;
   const score = ratio > 70 ? 78 : ratio > 55 ? 62 : 48;
   const suggestedDecision = score > 65 ? 'approve' : 'review';
@@ -19,7 +26,7 @@ const analysisSummary = (values: Record<string, string | string[]>) => {
   };
 };
 
-type LoanFormProps = { onSubmitted?: () => void };
+type LoanFormProps = { onSubmitted?: () => void | Promise<void> };
 
 export const LoanForm = ({ onSubmitted }: LoanFormProps) => {
   const [step, setStep] = useState(1);
@@ -59,11 +66,67 @@ export const LoanForm = ({ onSubmitted }: LoanFormProps) => {
     setRawUpload((prev) => `${prev ? `${prev}, ` : ''}${files.join(', ')}`);
   };
 
+  const validateIdentity = (): boolean => {
+    if (!form.customerName.trim()) {
+      setError('Applicant name is required.');
+      return false;
+    }
+    const aadhaar = normalizeAadhaar(form.aadhaarNumber);
+    if (aadhaar.length !== 12) {
+      setError('Aadhaar must be exactly 12 digits.');
+      return false;
+    }
+    const pan = normalizePan(form.panNumber);
+    if (!PAN_REGEX.test(pan)) {
+      setError('Invalid PAN format. Use format ABCDE1234F.');
+      return false;
+    }
+    return true;
+  };
+
+  const submitPayload = () => {
+    const income = form.income ? Number(form.income) : DEFAULT_INCOME;
+    const loanAmount = form.loanAmount ? Number(form.loanAmount) : DEFAULT_LOAN;
+    const docs = form.documents.length > 0 ? form.documents : ['PAN Card', 'Aadhaar Card'];
+    return {
+      customerName: form.customerName.trim(),
+      panNumber: normalizePan(form.panNumber),
+      aadhaarNumber: normalizeAadhaar(form.aadhaarNumber),
+      income,
+      loanAmount,
+      documents: docs,
+    };
+  };
+
+  const runSubmit = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      await createApplication(submitPayload());
+      setSuccess('Application submitted successfully. FINOVA AI completed risk analysis and updated your pipeline.');
+      setForm({ customerName: '', panNumber: '', aadhaarNumber: '', income: '', loanAmount: '', documents: [] });
+      setRawUpload('');
+      setStep(1);
+      await onSubmitted?.();
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string } } };
+      setError(ax?.response?.data?.message || 'Unable to submit application. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickSubmit = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!validateIdentity()) return;
+    await runSubmit();
+  };
+
   const handleNext = () => {
     setError('');
-    if (step === 1 && (!form.customerName || !form.panNumber || !form.aadhaarNumber)) {
-      setError('Please complete borrower profile fields.');
-      return;
+    if (step === 1) {
+      if (!validateIdentity()) return;
     }
     if (step === 2 && (!form.income || !form.loanAmount)) {
       setError('Please enter income and loan amount.');
@@ -76,28 +139,12 @@ export const LoanForm = ({ onSubmitted }: LoanFormProps) => {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    try {
-      await createApplication({
-        customerName: form.customerName,
-        panNumber: form.panNumber,
-        aadhaarNumber: form.aadhaarNumber,
-        income: Number(form.income),
-        loanAmount: Number(form.loanAmount),
-        documents: form.documents,
-      });
-      setSuccess('Application submitted successfully. FINOVA AI is analyzing the request.');
-      setForm({ customerName: '', panNumber: '', aadhaarNumber: '', income: '', loanAmount: '', documents: [] });
-      setRawUpload('');
-      setStep(1);
-      onSubmitted?.();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Unable to submit application.');
-    } finally {
-      setLoading(false);
+    if (!validateIdentity()) return;
+    if (!form.income || !form.loanAmount) {
+      setError('Please enter income and loan amount before final submit.');
+      return;
     }
+    await runSubmit();
   };
 
   return (
@@ -118,17 +165,33 @@ export const LoanForm = ({ onSubmitted }: LoanFormProps) => {
       {step === 1 && (
         <div className="grid gap-4">
           <label className="block text-sm text-slate-300">
-            Borrower name
-            <input name="customerName" value={form.customerName} onChange={handleChange} className={inputClass} placeholder="e.g. Priya Nair" />
+            Applicant name
+            <input name="customerName" value={form.customerName} onChange={handleChange} className={inputClass} placeholder="e.g. Priya Nair" autoComplete="name" />
+          </label>
+          <label className="block text-sm text-slate-300">
+            Aadhaar number (12 digits)
+            <input name="aadhaarNumber" value={form.aadhaarNumber} onChange={handleChange} className={inputClass} placeholder="123412341234" inputMode="numeric" maxLength={14} autoComplete="off" />
           </label>
           <label className="block text-sm text-slate-300">
             PAN number
-            <input name="panNumber" value={form.panNumber} onChange={handleChange} className={inputClass} placeholder="AGKPG1234F" />
+            <input name="panNumber" value={form.panNumber} onChange={handleChange} className={inputClass} placeholder="ABCDE1234F" autoComplete="off" maxLength={10} />
           </label>
-          <label className="block text-sm text-slate-300">
-            Aadhaar number
-            <input name="aadhaarNumber" value={form.aadhaarNumber} onChange={handleChange} className={inputClass} placeholder="1234 1234 1234" />
-          </label>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleQuickSubmit}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-slate-950 transition hover:from-cyan-300 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+                Processing…
+              </>
+            ) : (
+              'Submit & analyze application'
+            )}
+          </button>
+          <p className="text-center text-xs text-slate-500">Uses default income and loan assumptions unless you continue to add full financial details.</p>
         </div>
       )}
 
@@ -196,7 +259,14 @@ export const LoanForm = ({ onSubmitted }: LoanFormProps) => {
           </button>
         ) : (
           <button type="submit" disabled={loading} className="rounded-3xl bg-gradient-to-r from-cyan-400 to-violet-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:from-cyan-300 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-60">
-            {loading ? 'Submitting...' : 'Submit application'}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+                Analyzing…
+              </span>
+            ) : (
+              'Submit & analyze application'
+            )}
           </button>
         )}
       </div>

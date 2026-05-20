@@ -16,11 +16,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-midnight text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-5 px-4 py-5 lg:px-8">
-        <div className="grid flex-1 gap-5 lg:grid-cols-[300px_1fr]">
+    <div className="h-screen min-h-0 overflow-hidden bg-midnight text-slate-100">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1600px] gap-5 px-4 py-5 lg:px-8">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-5 lg:flex-row">
           <Sidebar />
-          <main className="space-y-6">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain pr-1">
+            <div className="space-y-6">
             <header className="rounded-[2rem] border border-white/10 bg-slate-950/80 p-6 shadow-[0_30px_90px_rgba(8,15,40,0.35)] backdrop-blur-xl">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                 <div className="space-y-4">
@@ -48,6 +49,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
               </div>
             </header>
             {children}
+            </div>
           </main>
         </div>
       </div>

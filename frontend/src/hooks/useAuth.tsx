@@ -12,11 +12,35 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+type RawJwt = {
+  id?: string;
+  _id?: string;
+  sub?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  exp?: number;
+};
+
 const decodeUser = (token: string): UserPayload | null => {
   try {
-    const decoded = jwtDecode<UserPayload>(token);
+    const decoded = jwtDecode<RawJwt>(token);
     if (decoded.exp && decoded.exp * 1000 < Date.now()) return null;
-    return decoded;
+
+    const id = decoded.id ?? decoded._id ?? decoded.sub;
+    const email = decoded.email;
+    const name = decoded.name ?? 'User';
+    const role = decoded.role ?? 'manager';
+
+    if (!id || !email) return null;
+
+    return {
+      id: String(id),
+      email: String(email),
+      name: String(name),
+      role: String(role),
+      exp: decoded.exp,
+    };
   } catch {
     return null;
   }

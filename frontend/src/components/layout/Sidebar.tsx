@@ -17,22 +17,26 @@ export const Sidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className={`relative flex h-full flex-col justify-between overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 p-5 text-slate-300 shadow-[0_0_55px_rgba(34,211,238,0.16)] transition-all duration-300 ${collapsed ? 'w-20 px-3' : 'w-full max-w-[300px] px-6'}`}>
-      <div>
+    <aside
+      className={`flex h-[calc(100vh-2.5rem)] max-h-[calc(100vh-2.5rem)] flex-shrink-0 flex-col justify-between overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/90 p-5 text-slate-300 shadow-[0_0_55px_rgba(34,211,238,0.16)] transition-all duration-300 ${
+        collapsed ? 'w-[5.5rem] px-3' : 'w-full max-w-[300px] px-6'
+      }`}
+    >
+      <div className="min-h-0 flex-1">
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-3xl border border-white/10 bg-slate-900/80 text-cyan-200 transition hover:border-cyan-400/30 hover:bg-slate-900"
+          className="mb-6 inline-flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-3xl border border-white/10 bg-slate-900/80 text-cyan-200 transition hover:border-cyan-400/30 hover:bg-slate-900"
           aria-label="Toggle sidebar"
         >
           <Menu className="h-6 w-6" />
         </button>
         <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-white/10 bg-slate-900/90 p-4 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-500/30 to-violet-500/25 text-cyan-100 shadow-lg shadow-cyan-500/20">
+          <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-500/30 to-violet-500/25 text-cyan-100 shadow-lg shadow-cyan-500/20">
             <span className="text-2xl font-semibold">F</span>
             <span className="absolute -right-1 top-1 inline-flex h-3 w-3 animate-pulse rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.45)]" />
           </div>
           {!collapsed && (
-            <div>
+            <div className="min-w-0">
               <p className="text-sm uppercase tracking-[0.3em] text-cyan-300/90">FINOVA AI</p>
               <p className="text-xs text-slate-400">AI-driven finance hub</p>
             </div>
@@ -51,8 +55,8 @@ export const Sidebar = () => {
                   active ? 'bg-cyan-500/15 text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.18)]' : 'text-slate-400 hover:bg-white/5 hover:text-white'
                 } ${collapsed ? 'justify-center px-3' : ''}`}
               >
-                <Icon className="h-6 w-6" />
-                {!collapsed && <span>{item.label}</span>}
+                <Icon className="h-6 w-6 flex-shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
             );
           })}
@@ -60,7 +64,7 @@ export const Sidebar = () => {
       </div>
 
       {!collapsed && (
-        <div className="rounded-[1.75rem] border border-white/10 bg-slate-900/80 p-4 text-sm text-slate-400 shadow-[0_0_40px_rgba(34,211,238,0.06)]">
+        <div className="mt-4 flex-shrink-0 rounded-[1.75rem] border border-white/10 bg-slate-900/80 p-4 text-sm text-slate-400 shadow-[0_0_40px_rgba(34,211,238,0.06)]">
           <p className="uppercase tracking-[0.25em] text-cyan-300/70">Quick tip</p>
           <p className="mt-3 text-slate-300">Navigate to analytics, AI insights, and workflow operations with one click.</p>
         </div>

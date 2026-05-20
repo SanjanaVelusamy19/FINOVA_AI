@@ -3,29 +3,36 @@ import { AreaChart, Area, ResponsiveContainer, PieChart, Pie, Cell, Tooltip } fr
 import { AppShell } from '../components/layout/AppShell';
 import { PageLoader } from '../components/ui/PageLoader';
 import { fetchDashboard } from '../services/api';
-import { dashboardFallback } from '../utils/demoData';
+import { emptyDashboard } from '../utils/demoData';
 
 const colors = ['#22d3ee', '#f97316', '#f43f5e', '#a78bfa'];
 
 const DashboardPage = () => {
-  const [metrics, setMetrics] = useState<any>(dashboardFallback);
+  const [metrics, setMetrics] = useState<any>(emptyDashboard);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { skipCache?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
-      const response = await fetchDashboard();
-      setMetrics(response.data || dashboardFallback);
+      const response = await fetchDashboard({ skipCache: opts?.skipCache });
+      setMetrics(response.data);
     } catch {
-      setMetrics(dashboardFallback);
+      setMetrics(emptyDashboard);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    const interval = setInterval(() => void load(), 60_000);
+    void load({});
+    const interval = setInterval(() => void load({ silent: true }), 60_000);
     return () => clearInterval(interval);
+  }, [load]);
+
+  useEffect(() => {
+    const onRefresh = () => void load({ skipCache: true, silent: true });
+    window.addEventListener('finova:data-changed', onRefresh);
+    return () => window.removeEventListener('finova:data-changed', onRefresh);
   }, [load]);
 
   if (loading) {
@@ -35,6 +42,10 @@ const DashboardPage = () => {
       </AppShell>
     );
   }
+
+  const monthly = Array.isArray(metrics.monthlyApplications) ? metrics.monthlyApplications : [];
+  const riskDist = Array.isArray(metrics.riskDistribution) ? metrics.riskDistribution : [];
+  const logs = Array.isArray(metrics.aiLogs) ? metrics.aiLogs : [];
 
   return (
     <AppShell>
@@ -88,8 +99,13 @@ const DashboardPage = () => {
               <span className="rounded-3xl bg-cyan-500/10 px-3 py-2 text-xs uppercase tracking-[0.3em] text-cyan-200">+18% vs last quarter</span>
             </div>
             <div className="mt-6 h-[320px]">
+              {monthly.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-3xl border border-white/5 bg-slate-950/40 text-sm text-slate-500">
+                  No timeline data yet. Applications will appear here after the first submissions.
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={metrics.monthlyApplications.map((item: any) => ({ label: `${item._id.month}/${item._id.year}`, count: item.count }))}>
+                <AreaChart data={monthly.map((item: any) => ({ label: `${item._id.month}/${item._id.year}`, count: item.count }))}>
                   <defs>
                     <linearGradient id="dashboardGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.85} />
@@ -100,6 +116,7 @@ const DashboardPage = () => {
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.08)' }} />
                 </AreaChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -109,16 +126,22 @@ const DashboardPage = () => {
               <h2 className="mt-2 text-2xl font-semibold text-white">Portfolio distribution</h2>
             </div>
             <div className="mt-8 h-[320px]">
+              {riskDist.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-3xl border border-white/5 bg-slate-950/40 text-sm text-slate-500">
+                  No risk distribution until loan applications are scored.
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={metrics.riskDistribution} dataKey="count" nameKey="_id" innerRadius={60} outerRadius={100} paddingAngle={4}>
-                    {metrics.riskDistribution.map((entry: any, index: number) => (
-                      <Cell key={`cell-${entry._id}`} fill={colors[index % colors.length]} />
+                  <Pie data={riskDist} dataKey="count" nameKey="_id" innerRadius={60} outerRadius={100} paddingAngle={4}>
+                    {riskDist.map((entry: any, index: number) => (
+                      <Cell key={`cell-${entry._id}-${index}`} fill={colors[index % colors.length]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.08)' }} />
                 </PieChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
@@ -132,18 +155,24 @@ const DashboardPage = () => {
             <span className="rounded-3xl bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.3em] text-slate-300">Realtime feed</span>
           </div>
           <div className="mt-6 space-y-4">
-            {metrics.aiLogs.map((log: any) => (
-              <div key={log._id} className="rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{log.type}</p>
-                    <h3 className="mt-2 text-xl font-semibold text-white">{log.title}</h3>
+            {logs.length === 0 ? (
+              <p className="text-sm text-slate-500">No AI activity yet. Submit a loan application to generate intelligence events.</p>
+            ) : (
+              logs.map((log: any) => (
+                <div key={log._id} className="rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.15)]">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{log.type}</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">{log.title}</h3>
+                    </div>
+                    <span className="rounded-3xl bg-white/5 px-3 py-2 text-sm text-slate-300">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </span>
                   </div>
-                  <span className="rounded-3xl bg-white/5 px-3 py-2 text-sm text-slate-300">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <p className="mt-3 text-slate-300">{log.detail}</p>
                 </div>
-                <p className="mt-3 text-slate-300">{log.detail}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

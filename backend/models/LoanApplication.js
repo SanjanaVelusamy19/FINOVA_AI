@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const LoanApplicationSchema = new mongoose.Schema({
+  referenceId: { type: String, unique: true, index: true },
   customerName: { type: String, required: true },
   panNumber: { type: String, required: true },
   aadhaarNumber: { type: String, required: true },
@@ -9,10 +10,14 @@ const LoanApplicationSchema = new mongoose.Schema({
   documents: [{ type: String }],
   status: {
     type: String,
-    enum: ['submitted', 'verified', 'analysis', 'assigned', 'queued', 'approved', 'rejected'],
+    enum: ['submitted', 'identity_verification', 'ai_risk_analysis', 'fraud_detection', 'compliance_review', 'under_review', 'assigned', 'queued', 'approved', 'rejected', 'escalated'],
     default: 'submitted',
   },
   riskScore: { type: Number, default: 0 },
+  fraudProbability: { type: Number, default: 0 },
+  approvalProbability: { type: Number, default: 0 },
+  repaymentConfidence: { type: Number, default: 0 },
+  workflowPriority: { type: String, enum: ['Low', 'Medium', 'High', 'Critical'], default: 'Medium' },
   suggestedDecision: { type: String, enum: ['approve', 'reject', 'review'], default: 'review' },
   riskSummary: { type: String, default: '' },
   missingDocuments: [{ type: String }],

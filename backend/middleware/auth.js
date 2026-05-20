@@ -11,7 +11,13 @@ export const protect = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      id: decoded.id ? String(decoded.id) : decoded.sub ? String(decoded.sub) : undefined,
+    };
+    if (!req.user.id) {
+      return res.status(401).json({ message: 'Invalid token payload' });
+    }
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Token invalid or expired' });

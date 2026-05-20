@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '../components/layout/AppShell';
 import { PageLoader } from '../components/ui/PageLoader';
 import { fetchTasks, updateTask } from '../services/api';
@@ -14,23 +14,33 @@ const TasksPage = () => {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadTasks = async () => {
-    setLoading(true);
+  const loadTasks = useCallback(async (opts?: { skipCache?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
-      const response = await fetchTasks();
-      setTasks(response.data);
+      const response = await fetchTasks({ skipCache: opts?.skipCache });
+      setTasks(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setTasks([]);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    void loadTasks();
-  }, []);
+    void loadTasks({});
+    const interval = setInterval(() => void loadTasks({ silent: true }), 45_000);
+    return () => clearInterval(interval);
+  }, [loadTasks]);
+
+  useEffect(() => {
+    const onRefresh = () => void loadTasks({ skipCache: true, silent: true });
+    window.addEventListener('finova:data-changed', onRefresh);
+    return () => window.removeEventListener('finova:data-changed', onRefresh);
+  }, [loadTasks]);
 
   const handleStatus = async (id: string, status: string) => {
     await updateTask(id, { status, note: `Marked ${status} in UI` });
-    void loadTasks();
+    void loadTasks({ skipCache: true, silent: true });
   };
 
   return (
@@ -43,7 +53,7 @@ const TasksPage = () => {
               <h1 className="mt-2 text-4xl font-semibold text-white">Active officer queue</h1>
               <p className="mt-3 max-w-2xl text-slate-400">Review pending checks, monitor progress, and complete approvals from one place.</p>
             </div>
-            <button onClick={loadTasks} className="rounded-3xl bg-gradient-to-r from-cyan-500/20 to-violet-500/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:from-cyan-400 hover:to-violet-300">
+            <button onClick={() => void loadTasks({ skipCache: true })} className="rounded-3xl bg-gradient-to-r from-cyan-500/20 to-violet-500/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:from-cyan-400 hover:to-violet-300">
               Refresh tasks
             </button>
           </div>
@@ -51,6 +61,8 @@ const TasksPage = () => {
 
         {loading ? (
           <PageLoader label="Loading verification tasks..." />
+        ) : tasks.length === 0 ? (
+          <div className="glass-card p-8 text-center text-slate-400">No verification tasks in queue. Applications flagged by AI will appear here.</div>
         ) : (
           <div className="grid gap-5">
             {tasks.map((task) => (
