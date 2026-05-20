@@ -35,3 +35,10 @@ button, input, textarea, select {
 .text-glow {
   text-shadow: 0 0 18px rgba(34, 211, 238, 0.24);
 }
+
+/* Hide the Sidebar "Quick tip" container without changing JSX.
+   Targets the app's main sidebar aside by matching key Tailwind classes
+   and hides the last child (the quick tip box). */
+aside[class*="bg-slate-950"][class*="rounded-[2rem]"] > div:last-child {
+  display: none !important;
+}
